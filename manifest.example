@@ -4,6 +4,7 @@
 #
 # ---- globals ----
 set passphrase-file /home/greenc/scripts/secrets/borg.passphrase
+set key-export-dir   /home/greenc/scripts/secrets/borg-keys
 set retention       keep-daily=3,keep-weekly=6,keep-monthly=24
 set compression     zstd
 

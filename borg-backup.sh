@@ -62,6 +62,7 @@ declare -A DEST_PATH DEST_KEEP
 RETENTION="keep-daily=3,keep-weekly=6,keep-monthly=24"
 COMPRESSION="zstd"
 PASSFILE=""
+KEYDIR=""
 ROWS=()
 
 while read -r f1 f2 f3 f4 rest; do
@@ -71,6 +72,7 @@ while read -r f1 f2 f3 f4 rest; do
             retention)       RETENTION="$f3" ;;
             compression)     COMPRESSION="$f3" ;;
             passphrase-file) PASSFILE="$f3" ;;
+            key-export-dir)  KEYDIR="$f3" ;;
             *) fail "unknown 'set' key: $f2" ;;
           esac ;;
     dest) DEST_PATH[$f2]="$f3"; [ -n "${f4:-}" ] && DEST_KEEP[$f2]="$f4" ;;
@@ -86,6 +88,28 @@ done < "$MANIFEST"
 # PASSCOMMAND, not BORG_PASSPHRASE: keeps the secret out of the environment and off any
 # command line. segartd's visible --cb-pass in ps is the counter-example.
 export BORG_PASSCOMMAND="cat $PASSFILE"
+
+# export_key - keep a copy of each repo's key outside the repo.
+#
+# With repokey the key lives in the repo's own config, wrapped by the passphrase, so
+# passphrase + intact repo = access. This covers the other case: if that config is
+# damaged, a correct passphrase alone recovers nothing.
+#
+# Written into the secrets dir, which collect-secrets.sh already age-encrypts and ships
+# offsite - so the paper burden stays at two items (age key, borg passphrase) no matter
+# how many repos exist. Exporting per repo onto paper does not scale.
+export_key() {
+  local repo="$1" name="$2" dest
+  [ -n "$KEYDIR" ] || return 0
+  dest="$KEYDIR/$name.key"
+  [ -s "$dest" ] && return 0                       # already held; keys do not rotate
+  mkdir -p "$KEYDIR" && chmod 700 "$KEYDIR"
+  if borg key export "$repo" "$dest" >>"$LOG" 2>&1; then
+    chmod 600 "$dest"; say "$name: key exported to $dest"
+  else
+    fail "$name: borg key export failed"; return 1
+  fi
+}
 
 # ---- run ---------------------------------------------------------------------
 rc_overall=0; n_ok=0; n_fail=0
@@ -124,8 +148,10 @@ for row in "${ROWS[@]}"; do
       fi
     fi
 
+    export_key "$repo" "$THISHOST-$label" || { n_fail=$((n_fail+1)); rc_overall=1; }
+
     stats=(); [ "$VERBOSE" -eq 1 ] && stats=(--stats)
-    borg create --compression "$COMPRESSION" "${stats[@]-}" "${exargs[@]-}" \
+    borg create --compression "$COMPRESSION" "${stats[@]}" "${exargs[@]}" \
         "$repo::{now:%Y-%m-%d_%H:%M}" "$source" >>"$LOG" 2>&1
     rc=$?
 
