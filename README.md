@@ -64,6 +64,11 @@ that might be secret" is not a rule.
 With an encrypted repo, exclusions are only ever about **churn and bulk**:
 `node_modules`, `__pycache__`, `venv`. That is a rule you can state and check.
 
+Bare exclude names are automatically anchored as `sh:**/<name>` so they match at any
+depth. borg matches `--exclude` against the whole stored path, so a bare `node_modules`
+silently excludes nothing and gives no warning. Patterns that already carry a borg prefix
+(`sh:` `fm:` `re:` `pp:` `pf:`) or contain a slash are passed through unchanged.
+
 Restore
 -------
 

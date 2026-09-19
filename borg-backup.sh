@@ -123,7 +123,16 @@ for row in "${ROWS[@]}"; do
   exargs=()
   if [ -n "$excludes" ]; then
     IFS=',' read -ra ex <<< "$excludes"
-    for e in "${ex[@]}"; do exargs+=( --exclude "$e" ); done
+    # A bare name like "node_modules" matches only a path exactly equal to it, so it
+    # silently excludes NOTHING - borg gives no warning. Bare names are therefore given
+    # the sh:**/ prefix so they match at any depth; anything already carrying a borg
+    # pattern prefix (sh: fm: re: pp: pf:) or a slash is passed through untouched.
+    for e in "${ex[@]}"; do
+      case "$e" in
+        sh:*|fm:*|re:*|pp:*|pf:*|*/*) exargs+=( --exclude "$e" ) ;;
+        *)                            exargs+=( --exclude "sh:**/$e" ) ;;
+      esac
+    done
   fi
 
   IFS=',' read -ra dlist <<< "$dests"
