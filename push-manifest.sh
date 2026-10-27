@@ -39,7 +39,7 @@ for h in $hosts; do
      scp -q -o BatchMode=yes -o ConnectTimeout=15 "$tmp" "$h:$CONFDIR/manifest" 2>/dev/null; then
     echo "  $h: pushed"
   else
-    echo "push-manifest: FAILED to push to $h" >&2; rc=1
+    echo "push-manifest: FAILED to push to $h (unreachable, or no $pass there)" >&2; rc=1
   fi
 done
 exit $rc
